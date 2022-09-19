@@ -1,0 +1,523 @@
+---
+title: "Univariate Analysis For Banking Data"
+author: "Ada Lazuli"
+date: '2022-09-05'
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '1'
+  html_document:
+    toc: yes
+    toc_depth: 1
+    code_folding: show
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Libraries
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+library(e1071)
+library(ggplot2)
+library(dplyr)
+```
+
+# Helper Functions
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+base_hist <- function(df, x, target_name){
+  title <- paste("Histogram of ", target_name)
+  ggplot(df, aes(x = x)) + geom_histogram(alpha = 0.4) +
+    ggtitle(title) +
+    xlab(target_name) +
+    ylab("Frequency Count")
+}
+
+zero_plot <- function(df, x, target_name) {
+  title <- paste("Zero Plot of ", target_name)
+  ggplot(df, aes(x = x, y = 0, color =  default.payment.next.month)) + 
+    geom_point(alpha = 0.45) +
+    ggtitle(title) +
+    xlab(target_name) +
+    theme(axis.ticks.y = element_blank(), axis.text.y = element_blank(),
+          axis.title.y = element_blank()) + 
+    labs(color = "Defaults")
+}
+
+boxplot_comp <- function(df, x, target_name) {
+  title <- paste("Boxplot of ", target_name)
+  ggplot(df, aes(x = x, fill = default.payment.next.month)) + 
+    geom_boxplot(alpha = 0.45) +
+    ggtitle(title) +
+    xlab(target_name) +
+    theme(axis.ticks.y = element_blank(), axis.text.y = element_blank(),
+          axis.title.y = element_blank()) + 
+    labs(fill = "Defaults")
+}
+
+bar_comp_plot <- function(df, x, target_name) {
+  title <- paste("Barplot of ", target_name)
+  ggplot(df, aes(x = x, fill =  default.payment.next.month, color = default.payment.next.month)) + 
+    geom_bar(alpha = 0.5, position = "dodge") +
+    ggtitle(title) +
+    xlab(target_name) +
+    ylab("Frequency Count") +
+    labs(fill = "Defaults", color = "Defaults")
+}
+```
+
+
+# Data Loading
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+df <- read.csv("credit card default data set.csv")
+df$default.payment.next.month <- factor(df$default.payment.next.month, labels = c("No", "Yes"))
+```
+
+# Univariate Analysis
+
+## Overview
+
+The dataset has __`r nrow(df)`__ rows and __`r ncol(df)`__ features. The names of the features are:
+
+_`r colnames(df)`_
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+glimpse(df)
+```
+
+
+## ID
+
+The ID feature appears to be an index with a minimum of __`r min(df$ID)`__ and maximum of __`r max(df$ID)`__.
+
+## LIMIT_BAL (X1)
+
+X1 is the first feature for predictive modeling and consists for the amount of credit given that accounts for both the individual credit and family credit.
+
+The variable appears to consist of integers, with a maximum of __`r max(df$LIMIT_BAL)`__ and a minimum of __`r min(df$LIMIT_BAL)`__.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+summary(df$LIMIT_BAL)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$LIMIT_BAL
+name <- "Credit Limit (X1)"
+base_hist(df,x,name)
+zero_plot(df,x,name)
+boxplot_comp(df,x,name)
+```
+
+## SEX (X2)
+
+The gender variable refers to the gender of the individual, with a 1 for male and a 2 for female. 
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+df$SEX <- factor(df$SEX, labels = c("Male", "Female"))
+table(df$SEX)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$SEX
+name <- "SEX (X2)"
+bar_comp_plot(df,x,name)
+```
+
+## EDUCATION (X3)
+
+The education feature captures the education level of the individual. Possible values are:
+1. Graduate School
+2. University
+3. High School
+4. Others
+
+
+__NOTE:__ Values of 0, 5, and 6 were found in the data and added to the _Others_ category.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+df$EDUCATION <- factor(df$EDUCATION, labels = c("Others", "Graduate School", "Univserity", "High School", "Others",  "Others",  "Others"))
+table(df$EDUCATION)
+```
+
+### Graphical Analysis
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$EDUCATION
+name <- "EDUCATION (X3)"
+bar_comp_plot(df,x,name)
+```
+
+## MARRIAGE (X4)
+
+The marriage feature captures the marital status of the individual. Possible values are:
+1. Married
+2. Single
+3. Others
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+df$MARRIAGE <- factor(df$MARRIAGE, labels = c("Others", "Married", "Single","Others"))
+table(df$MARRIAGE)
+```
+
+### Graphical Analysis
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$MARRIAGE
+name <- "MARRIAGE (X4)"
+bar_comp_plot(df,x,name)
+```
+
+## AGE (X5)
+
+The age feature captures the age of the individual.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+summary(df$AGE)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$AGE
+name <- "AGE (X5)"
+base_hist(df,x,name)
+zero_plot(df,x,name)
+boxplot_comp(df,x,name)
+```
+
+
+## PAY_0 (X6)
+
+The PAY_0 feature captures the payment status  of the individual for the month of __September, 2005__. A negative number represents a duly payment, a 0 represents the month not being paid, and a positive number represents the number of months behind payment.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+summary(df$PAY_0)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$PAY_0
+name <- "PAY_0 (X6)"
+bar_comp_plot(df,x,name)
+boxplot_comp(df,x,name)
+```
+
+## PAY_2 (X7)
+
+The PAY_1 feature captures the payment status  of the individual for the month of __August, 2005__. A negative number represents a duly payment, a 0 represents the month not being paid, and a positive number represents the number of months behind payment.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+summary(df$PAY_2)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$PAY_2
+name <- "PAY_2 (X7)"
+bar_comp_plot(df,x,name)
+boxplot_comp(df,x,name)
+```
+
+## PAY_3 (X8)
+
+The PAY_3 feature captures the payment status  of the individual for the month of __July, 2005__. A negative number represents a duly payment, a 0 represents the month not being paid, and a positive number represents the number of months behind payment.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+summary(df$PAY_3)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$PAY_3
+name <- "PAY_3 (X8)"
+bar_comp_plot(df,x,name)
+boxplot_comp(df,x,name)
+```
+
+## PAY_4 (X9)
+
+The PAY_4 feature captures the payment status  of the individual for the month of __June, 2005__. A negative number represents a duly payment, a 0 represents the month not being paid, and a positive number represents the number of months behind payment.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+summary(df$PAY_4)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$PAY_4
+name <- "PAY_4 (X9)"
+bar_comp_plot(df,x,name)
+boxplot_comp(df,x,name)
+```
+
+## PAY_5 (X10)
+
+The PAY_5 feature captures the payment status  of the individual for the month of __May, 2005__. A negative number represents a duly payment, a 0 represents the month not being paid, and a positive number represents the number of months behind payment.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+summary(df$PAY_5)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$PAY_5
+name <- "PAY_5 (X10)"
+bar_comp_plot(df,x,name)
+boxplot_comp(df,x,name)
+```
+
+## PAY_6 (X11)
+
+The PAY_6 feature captures the payment status  of the individual for the month of __April, 2005__. A negative number represents a duly payment, a 0 represents the month not being paid, and a positive number represents the number of months behind payment.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+summary(df$PAY_6)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$PAY_6
+name <- "PAY_6 (X11)"
+bar_comp_plot(df,x,name)
+boxplot_comp(df,x,name)
+```
+
+
+## BILL_AMT1 (X12)
+
+The BILL_AMT1 feature captures the billed amount to the individual for the month of __September, 2005__.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+summary(df$BILL_AMT1)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$BILL_AMT1
+name <- "BILL_AMT1 (X12)"
+base_hist(df,x,name)
+zero_plot(df,x,name)
+boxplot_comp(df,x,name)
+```
+
+## BILL_AMT2 (X13)
+
+The BILL_AMT2 feature captures the billed amount to the individual for the month of __August, 2005__.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+summary(df$BILL_AMT2)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$BILL_AMT2
+name <- "BILL_AMT2 (X13)"
+base_hist(df,x,name)
+zero_plot(df,x,name)
+boxplot_comp(df,x,name)
+```
+
+
+## BILL_AMT3 (X14)
+
+The BILL_AMT3 feature captures the billed amount to the individual for the month of __July, 2005__.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+summary(df$BILL_AMT3)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$BILL_AMT3
+name <- "BILL_AMT3 (X14)"
+base_hist(df,x,name)
+zero_plot(df,x,name)
+boxplot_comp(df,x,name)
+```
+
+
+## BILL_AMT4 (X15)
+
+The BILL_AMT4 feature captures the billed amount to the individual for the month of __June, 2005__.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+summary(df$BILL_AMT4)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$BILL_AMT4
+name <- "BILL_AMT4 (X15)"
+base_hist(df,x,name)
+zero_plot(df,x,name)
+boxplot_comp(df,x,name)
+```
+
+## BILL_AMT5 (X16)
+
+The BILL_AMT5 feature captures the billed amount to the individual for the month of __May, 2005__.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+summary(df$BILL_AMT5)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$BILL_AMT5
+name <- "BILL_AMT5 (X16)"
+base_hist(df,x,name)
+zero_plot(df,x,name)
+boxplot_comp(df,x,name)
+```
+
+## BILL_AMT6 (X17)
+
+The BILL_AMT6 feature captures the billed amount to the individual for the month of __April, 2005__.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+summary(df$BILL_AMT6)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$BILL_AMT6
+name <- "BILL_AMT6 (X17)"
+base_hist(df,x,name)
+zero_plot(df,x,name)
+boxplot_comp(df,x,name)
+```
+
+
+## PAY_AMT1 (X18)
+
+The PAY_AMT1 feature captures the payment amount from the individual for the month of __September, 2005__.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+summary(df$PAY_AMT1)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$PAY_AMT1
+name <- "PAY_AMT1 (X18)"
+base_hist(df,x,name)
+zero_plot(df,x,name)
+boxplot_comp(df,x,name)
+```
+
+
+## PAY_AMT2 (X19)
+
+The PAY_AMT2 feature captures the payment amount from the individual for the month of __August, 2005__.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+summary(df$PAY_AMT2)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$PAY_AMT2
+name <- "PAY_AMT2 (X19)"
+base_hist(df,x,name)
+zero_plot(df,x,name)
+boxplot_comp(df,x,name)
+```
+
+
+
+## PAY_AMT3 (X20)
+
+The PAY_AMT3 feature captures the payment amount from the individual for the month of __July, 2005__.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+summary(df$PAY_AMT3)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$PAY_AMT3
+name <- "PAY_AMT3 (X20)"
+base_hist(df,x,name)
+zero_plot(df,x,name)
+boxplot_comp(df,x,name)
+```
+
+
+## PAY_AMT4 (X21)
+
+The PAY_AMT4 feature captures the payment amount from the individual for the month of __June, 2005__.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+summary(df$PAY_AMT4)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$PAY_AMT4
+name <- "PAY_AMT4 (X21)"
+base_hist(df,x,name)
+zero_plot(df,x,name)
+boxplot_comp(df,x,name)
+```
+
+
+
+
+## PAY_AMT5 (X22)
+
+The PAY_AMT5 feature captures the payment amount from the individual for the month of __May, 2005__.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+summary(df$PAY_AMT5)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$PAY_AMT5
+name <- "PAY_AMT5 (X22)"
+base_hist(df,x,name)
+zero_plot(df,x,name)
+boxplot_comp(df,x,name)
+```
+
+
+## PAY_AMT6 (X23)
+
+The PAY_AMT6 feature captures the payment amount from the individual for the month of __April, 2005__.
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+summary(df$PAY_AMT6)
+```
+
+### Graphical Analysis
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+x <- df$PAY_AMT6
+name <- "PAY_AMT6 (X23)"
+base_hist(df,x,name)
+zero_plot(df,x,name)
+boxplot_comp(df,x,name)
+```
+
+
+## Defaults (Y1)
+
+The target variable for the dataset is whether the individual defaults on a payment. 
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+table(df$default.payment.next.month)
+```
+
+
+
+
+
+
+
+
+
+
+
+

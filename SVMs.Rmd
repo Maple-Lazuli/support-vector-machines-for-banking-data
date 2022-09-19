@@ -1,0 +1,380 @@
+---
+title: "SVMs For Banking Data"
+author: "Ada Lazuli"
+date: '2022-09-06'
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '1'
+  html_document:
+    toc: yes
+    toc_depth: 1
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Libraries
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+library(ggplot2)
+library(ggcorrplot)
+library(dplyr)
+library(tidyverse)
+library(tidymodels)
+library(e1071)
+set.seed(1)
+```
+
+# PreProcessing
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+df <- read.csv("credit card default data set.csv")
+
+df$default <- as.factor(df$default.payment.next.month)
+df$default.payment.next.month <- NULL
+
+df$is_female <- as.factor(as.integer(df$SEX == 2))
+df$SEX <- NULL
+df$is_married <- as.factor(as.integer(df$MARRIAGE == 1))
+df$is_single <- as.factor(as.integer(df$MARRIAGE == 2))
+df$is_married_other <- as.factor(as.integer(df$MARRIAGE == 0 | df$MARRIAGE == 3))
+df$MARRIAGE <- NULL
+
+df$is_edu_other <- as.factor(as.integer(df$EDUCATION == 0 | df$EDUCATION > 3))
+df$is_edu_grad <- as.factor(as.integer(df$EDUCATION == 1))
+df$is_edu_uni <- as.factor(as.integer(df$EDUCATION == 2))
+df$is_edu_hs <- as.factor(as.integer(df$EDUCATION == 3))
+df$EDUCATION <- NULL
+
+
+df <- df %>% pivot_longer(c(PAY_0, PAY_2, PAY_3, PAY_4, PAY_5, PAY_6), "Month") %>%
+  rename(HIST = value) %>%
+  select(LIMIT_BAL,
+        is_edu_grad, is_edu_hs, is_edu_other, is_edu_uni,
+        is_female, is_married, is_married_other, is_single,
+         HIST, default)
+
+df <- df %>% group_by(default) %>% slice_sample(prop = 0.3) %>% ungroup()
+df$LIMIT_BAL <- scale(df$LIMIT_BAL)
+df$HIST <- scale(df$HIST)
+
+```
+
+# Train, Validation, and Test Split
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+first_split <- initial_split(df, prop = .7, strata = default)
+trainset <- training(first_split)
+second_split <- initial_split(testing(first_split), prop = .5, strata = default)
+validationset <- training(second_split)
+testset <- testing(second_split)
+```
+
+# SVM 1 -Linear
+
+## Creation
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+svm1 <- svm(default ~ .,
+            data = trainset,
+            type = "C-classification",
+            kernel = "linear",
+            scale = FALSE)
+```
+
+## Performance
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+train_accuracy1 <- mean(predict(svm1, trainset) == trainset$default)
+val_accuracy1 <- mean(predict(svm1, validationset) == validationset$default)
+```
+
+```{r}
+predictions <- predict(svm1, validationset)
+TP <-  sum( predictions == 1  & validationset$default == 1)
+FP <-  sum( predictions == 0 &  validationset$default == 1)
+FN <-  sum( predictions == 1 &  validationset$default == 0)
+TN <-  sum( predictions == 0 &  validationset$default == 0)
+precision <- (TP)/(TP + FP)
+recall <- (TP)/(TP + FN)
+```
+
+
+|                          | Test Real     | Test Fake    |
+| :----:                   |    :----:     |   :----:   |
+| __Classified Real__      |`r TP`         |`r FP` |
+| __Classified Fake__      |`r FN`         |`r TN` |
+
+1. Accuracy: `r (TP + TN)/(TP + TN + FP + FN)`
+2. Precision: `r precision`
+3. Recall: `r recall`
+4. F1 Score: `r 2 * ((precision * recall)/(precision + recall))`
+
+
+
+The accuracies against the training and validation sets is:
+
+1. Train: `r train_accuracy1`
+2. Validation: `r val_accuracy1`
+
+
+# SVM 2 -Polynomial Degree 3
+
+## Creation
+
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+svm2<- svm(default ~ .,
+            data = trainset,
+            type = "C-classification",
+            kernel = "polynomial",
+            degree = 3,
+            scale = FALSE)
+```
+
+## Performance
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+train_accuracy2 <- mean(predict(svm2, trainset) == trainset$default)
+val_accuracy2 <- mean(predict(svm2, validationset) == validationset$default)
+```
+
+The accuracies against the training and validation sets is:
+
+1. Train: `r train_accuracy2`
+2. Validation: `r val_accuracy2`
+
+```{r}
+predictions <- predict(svm2, validationset)
+TP <-  sum( predictions == 1  & validationset$default == 1)
+FP <-  sum( predictions == 0 &  validationset$default == 1)
+FN <-  sum( predictions == 1 &  validationset$default == 0)
+TN <-  sum( predictions == 0 &  validationset$default == 0)
+precision <- (TP)/(TP + FP)
+recall <- (TP)/(TP + FN)
+```
+
+
+|                          | Test Real     | Test Fake    |
+| :----:                   |    :----:     |   :----:   |
+| __Classified Real__      |`r TP`         |`r FP` |
+| __Classified Fake__      |`r FN`         |`r TN` |
+
+1. Accuracy: `r (TP + TN)/(TP + TN + FP + FN)`
+2. Precision: `r precision`
+3. Recall: `r recall`
+4. F1 Score: `r 2 * ((precision * recall)/(precision + recall))`
+
+# SVM 3 - Polynomial Degree 4
+
+
+## Creation
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+svm3 <- svm(default ~ .,
+            data = trainset,
+            type = "C-classification",
+            kernel = "polynomial",
+            degree = 4,
+            scale = FALSE)
+```
+
+## Performance
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+train_accuracy3 <- mean(predict(svm3, trainset) == trainset$default)
+val_accuracy3 <- mean(predict(svm3, validationset) == validationset$default)
+```
+
+The accuracies against the training and validation sets is:
+
+1. Train: `r train_accuracy3`
+2. Validation: `r val_accuracy3`
+
+```{r}
+predictions <- predict(svm3, validationset)
+TP <-  sum( predictions == 1  & validationset$default == 1)
+FP <-  sum( predictions == 0 &  validationset$default == 1)
+FN <-  sum( predictions == 1 &  validationset$default == 0)
+TN <-  sum( predictions == 0 &  validationset$default == 0)
+precision <- (TP)/(TP + FP)
+recall <- (TP)/(TP + FN)
+```
+
+
+|                          | Test Real     | Test Fake    |
+| :----:                   |    :----:     |   :----:   |
+| __Classified Real__      |`r TP`         |`r FP` |
+| __Classified Fake__      |`r FN`         |`r TN` |
+
+1. Accuracy: `r (TP + TN)/(TP + TN + FP + FN)`
+2. Precision: `r precision`
+3. Recall: `r recall`
+4. F1 Score: `r 2 * ((precision * recall)/(precision + recall))`
+
+# SVM 4 - Polynomial Degree 2
+
+## Creation
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+svm4 <- svm(default ~ .,
+            data = trainset,
+            type = "C-classification",
+            kernel = "polynomial",
+            degree = 2,
+            scale = FALSE)
+```
+
+## Performance
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+train_accuracy4 <- mean(predict(svm4, trainset) == trainset$default)
+val_accuracy4 <- mean(predict(svm4, validationset) == validationset$default)
+```
+
+The accuracies against the training and validation sets is:
+
+1. Train: `r train_accuracy4`
+2. Validation: `r val_accuracy4`
+
+```{r}
+predictions <- predict(svm4, validationset)
+TP <-  sum( predictions == 1  & validationset$default == 1)
+FP <-  sum( predictions == 0 &  validationset$default == 1)
+FN <-  sum( predictions == 1 &  validationset$default == 0)
+TN <-  sum( predictions == 0 &  validationset$default == 0)
+precision <- (TP)/(TP + FP)
+recall <- (TP)/(TP + FN)
+```
+
+
+|                          | Test Real     | Test Fake    |
+| :----:                   |    :----:     |   :----:   |
+| __Classified Real__      |`r TP`         |`r FP` |
+| __Classified Fake__      |`r FN`         |`r TN` |
+
+1. Accuracy: `r (TP + TN)/(TP + TN + FP + FN)`
+2. Precision: `r precision`
+3. Recall: `r recall`
+4. F1 Score: `r 2 * ((precision * recall)/(precision + recall))`
+
+```{r}
+predictions <- predict(svm4, testset)
+TP <-  sum( predictions == 1  & validationset$default == 1)
+FP <-  sum( predictions == 0 &  validationset$default == 1)
+FN <-  sum( predictions == 1 &  validationset$default == 0)
+TN <-  sum( predictions == 0 &  validationset$default == 0)
+precision <- (TP)/(TP + FP)
+recall <- (TP)/(TP + FN)
+```
+
+
+|                          | Test Real     | Test Fake    |
+| :----:                   |    :----:     |   :----:   |
+| __Classified Real__      |`r TP`         |`r FP` |
+| __Classified Fake__      |`r FN`         |`r TN` |
+
+1. Accuracy: `r (TP + TN)/(TP + TN + FP + FN)`
+2. Precision: `r precision`
+3. Recall: `r recall`
+4. F1 Score: `r 2 * ((precision * recall)/(precision + recall))`
+
+
+# SVM 5 - Sigmoid
+
+## Creation
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+svm5 <- svm(default ~ .,
+            data = trainset,
+            type = "C-classification",
+            kernel = "sigmoid",
+            scale = FALSE)
+```
+
+## Performance
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+train_accuracy5 <- mean(predict(svm5, trainset) == trainset$default)
+val_accuracy5 <- mean(predict(svm5, validationset) == validationset$default)
+```
+
+The accuracies against the training and validation sets is:
+
+1. Train: `r train_accuracy5`
+2. Validation: `r val_accuracy5`
+
+```{r}
+predictions <- predict(svm5, validationset)
+TP <-  sum( predictions == 1  & validationset$default == 1)
+FP <-  sum( predictions == 0 &  validationset$default == 1)
+FN <-  sum( predictions == 1 &  validationset$default == 0)
+TN <-  sum( predictions == 0 &  validationset$default == 0)
+precision <- (TP)/(TP + FP)
+recall <- (TP)/(TP + FN)
+```
+
+
+|                          | Test Real     | Test Fake    |
+| :----:                   |    :----:     |   :----:   |
+| __Classified Real__      |`r TP`         |`r FP` |
+| __Classified Fake__      |`r FN`         |`r TN` |
+
+1. Accuracy: `r (TP + TN)/(TP + TN + FP + FN)`
+2. Precision: `r precision`
+3. Recall: `r recall`
+4. F1 Score: `r 2 * ((precision * recall)/(precision + recall))`
+
+# SVM 6 - Radial
+
+## Creation
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+svm6<- svm(default ~ .,
+            data = trainset,
+            type = "C-classification",
+            kernel = "radial",
+            scale = FALSE)
+```
+
+## Performance
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+train_accuracy6 <- mean(predict(svm6, trainset) == trainset$default)
+val_accuracy6 <- mean(predict(svm6, validationset) == validationset$default)
+```
+
+The accuracies against the training and validation sets is:
+
+1. Train: `r train_accuracy6`
+2. Validation: `r val_accuracy6`
+
+
+```{r}
+predictions <- predict(svm6, validationset)
+TP <-  sum( predictions == 1  & validationset$default == 1)
+FP <-  sum( predictions == 0 &  validationset$default == 1)
+FN <-  sum( predictions == 1 &  validationset$default == 0)
+TN <-  sum( predictions == 0 &  validationset$default == 0)
+precision <- (TP)/(TP + FP)
+recall <- (TP)/(TP + FN)
+```
+
+
+|                          | Test Real     | Test Fake    |
+| :----:                   |    :----:     |   :----:   |
+| __Classified Real__      |`r TP`         |`r FP` |
+| __Classified Fake__      |`r FN`         |`r TN` |
+
+1. Accuracy: `r (TP + TN)/(TP + TN + FP + FN)`
+2. Precision: `r precision`
+3. Recall: `r recall`
+4. F1 Score: `r 2 * ((precision * recall)/(precision + recall))`
+
+
+
+
+

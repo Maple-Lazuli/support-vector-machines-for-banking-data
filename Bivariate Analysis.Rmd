@@ -1,0 +1,294 @@
+---
+title: "Bivariate Analysis For Banking Data"
+author: "Ada Lazuli"
+date: '2022-09-05'
+output:
+  html_document:
+    toc: yes
+    toc_depth: 1
+    code_folding: show
+  pdf_document:
+    toc: yes
+    toc_depth: '1'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Libraries
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+library(ggplot2)
+library(ggcorrplot)
+library(dplyr)
+library(tidyverse)
+```
+
+# Helper Functions
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+box_cat_plt <- function(df, x, y, xname, yname) {
+  title <- paste("Boxplot Comparing", xname, "to", yname)
+  ggplot(df, aes(x = x, color = y,  fill = y)) + geom_boxplot(alpha = 0.5) + coord_flip() +
+    xlab(xname) +
+    theme(axis.ticks.y = element_blank(), axis.text.y = element_blank(),
+          axis.title.y = element_blank()) + 
+    ggtitle(title) + 
+    labs(fill = yname, color = yname)
+}
+
+scatter_comp_plt <- function(df, x, y, color, colorname){
+  title <- paste("Scatter Plot of AGE by Limit with", colorname, "shading")
+  ggplot(df, aes(x = x, y = y, color = color)) +
+    geom_point(alpha = 0.3) +
+    xlab("Age") +
+    ylab("Credit Limit") +
+    ggtitle(title)
+}
+
+chi_matrix <- function(df) {
+  rtn <- c()
+  for(x in colnames(df)){
+    temp <- c()
+    for (y in colnames(df)) {
+      temp <- c(temp, chisq.test(df[[x]], df[[y]])$p.value)
+    }
+    rtn <- rbind(rtn, temp)
+  }
+  
+  rtn <- as.data.frame(rtn)
+  colnames(rtn) <- colnames(df)
+  rownames(rtn) <- colnames(df)
+  
+  return(rtn)
+}
+
+chi_vector <- function(df, target) {
+  rtn <- c()
+  status <- c()
+  for(x in colnames(df)){
+    val <-  round(chisq.test(df[[x]], target)$p.value,digits = 4)
+    rtn <- c(rtn, val)
+    status <- c(status, if(val < 0.01) "Passed" else "Failed")
+  }
+  rtn <- cbind(rtn,status)
+  rtn <- cbind(rtn, colnames(df))
+  rtn <- as.data.frame(rtn)
+  colnames(rtn) <- c("pvalue", "Result", "feature")
+  return(rtn)
+}
+
+extract_month <- function(x) {
+  if (x == "PAY_0"){
+    return("9")
+  } else if (x == "PAY_2") {
+    return("8")
+  }else if (x == "PAY_3") {
+    return("7")
+  }else if (x == "PAY_4") {
+    return("6")
+  }else if (x == "PAY_5") {
+    return("5")
+  }else if (x == "PAY_6") {
+    return("4")
+  } else if (x == "BILL_AMT1") {
+    return("9")
+  } else if (x == "BILL_AMT2") {
+    return("8")
+  }else if (x == "BILL_AMT3") {
+    return("7")
+  }else if (x == "BILL_AMT4") {
+    return("6")
+  }else if (x == "BILL_AMT5") {
+    return("5")
+  }else if (x == "BILL_AMT6") {
+    return("4")
+  }else if (x == "PAY_AMT1") {
+    return("9")
+  }else if (x == "PAY_AMT2") {
+    return("8")
+  }else if (x == "PAY_AMT3") {
+    return("7")
+  }else if (x == "PAY_AMT4") {
+    return("6")
+  }else if (x == "PAY_AMT5") {
+    return("5")
+  }else if (x == "PAY_AMT6") {
+    return("4")
+  }
+  
+}
+
+```
+
+# Data Loading
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+df <- read.csv("credit card default data set.csv")
+df$default <- factor(df$default.payment.next.month, labels = c("No", "Yes"))
+df$default.payment.next.month <- NULL
+```
+
+# Pre-processing
+
+The following features are categorical and need to be converted into factor types:
+
+1. SEX
+2. EDUCATION
+3. MARRIAGE
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+df$SEX <- factor(df$SEX, labels = c("Male", "Female"))
+df$EDUCATION <- factor(df$EDUCATION, labels = c("Others", "Graduate School", "Univserity", "High School", "Others",  "Others",  "Others"))
+df$MARRIAGE <- factor(df$MARRIAGE, labels = c("Others", "Married", "Single","Others"))
+```
+
+# Bivariate Analysis (Non-Payment Features)
+
+## Overview
+
+The dataset has __`r nrow(df)`__ rows and __`r ncol(df)`__ features. The names of the features are:
+
+_`r colnames(df)`_
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+glimpse(df)
+```
+
+## LIMIT_BAL v.s. Categorical Features
+
+The P-value for chi-squared test for independence between LIMIT_BAL and each category is:
+
+1. LIMIT_BAL vs. SEX: `r chisq.test(df$LIMIT_BAL, df$SEX)$p.value`
+1. LIMIT_BAL vs. EDUCATION: `r chisq.test(df$LIMIT_BAL, df$EDUCATION)$p.value`
+1. LIMIT_BAL vs. MARRIAGE: `r chisq.test(df$LIMIT_BAL, df$MARRIAGE)$p.value`
+1. LIMIT_BAL vs. Default: `r chisq.test(df$LIMIT_BAL, df$default)$p.value`
+
+
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+box_cat_plt(df, df$LIMIT_BAL, df$SEX, "Credit Limit", "SEX")
+box_cat_plt(df, df$LIMIT_BAL, df$EDUCATION, "Credit Limit", "EDUCATION")
+box_cat_plt(df, df$LIMIT_BAL, df$MARRIAGE, "Credit Limit", "MARRIAGE")
+```
+
+## AGE v.s. Categorical Features
+
+The P-value for chi-squared test for independence between AGE and each category is:
+
+1. AGE vs. SEX: `r chisq.test(df$AGE, df$SEX)$p.value`
+1. AGE vs. EDUCATION: `r chisq.test(df$AGE, df$EDUCATION)$p.value`
+1. AGE vs. MARRIAGE: `r chisq.test(df$AGE, df$MARRIAGE)$p.value`
+1. AGE vs. Default: `r chisq.test(df$AGE, df$default)$p.value`
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+box_cat_plt(df, df$AGE, df$SEX, "AGE", "SEX")
+box_cat_plt(df, df$AGE, df$EDUCATION, "AGE", "EDUCATION")
+box_cat_plt(df, df$AGE, df$MARRIAGE, "AGE", "MARRIAGE")
+```
+
+## AGE v.s. LIMIT_BAL
+
+The correlation between AGE and LIMIT_BAL is `r cor(df$AGE, df$LIMIT_BAL)`
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+scatter_comp_plt(df, df$AGE, df$LIMIT_BAL, df$SEX, "SEX")
+scatter_comp_plt(df, df$AGE, df$LIMIT_BAL, df$EDUCATION, "EDUCATION")
+scatter_comp_plt(df, df$AGE, df$LIMIT_BAL, df$MARRIAGE, "MARRIAGE")
+scatter_comp_plt(df, df$AGE, df$LIMIT_BAL, df$default, "Defaults")
+```
+
+## Categorical Chi Squre Matrix
+
+A matrix of the results for chi-squared testing was created to evalute the categorical features against each other for independence.
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+chi_matrix(df %>% select(SEX, MARRIAGE, EDUCATION, default))
+```
+
+
+# Bivariate Analysis (Payment Features)
+
+## Correlation Matrix
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+ggcorrplot(cor(df%>% select(-AGE, -LIMIT_BAL, -SEX, -EDUCATION, -MARRIAGE, -default, -ID)))
+```
+
+## Independence Testing
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+chiv <- chi_vector(df%>% select(-AGE, -LIMIT_BAL, -SEX, -EDUCATION, -MARRIAGE, -default, -ID), df$default)
+ggplot(chiv, aes(x = feature, y = pvalue, color = Result, fill = Result)) + geom_col() +
+  theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust = -0.05))
+```
+
+
+# Bivariate Analysis (Time Series)
+
+## Pre-Processing
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+
+df$Index <- 1:nrow(df)
+
+df_hist <- df %>% pivot_longer(c(PAY_0, PAY_2, PAY_3, PAY_4, PAY_5, PAY_6), "Month") %>%
+  rename(HIST = value)
+
+df_hist$Month <- sapply(df_hist$Month, extract_month)
+
+df_billed <- df %>%   pivot_longer(c(BILL_AMT1, BILL_AMT2, BILL_AMT3, BILL_AMT4, BILL_AMT5, BILL_AMT6), "Month") %>%
+  rename(BILLED = value) %>%
+  select(Month, BILLED, Index)
+
+df_billed$Month <- sapply(df_billed$Month, extract_month)
+
+df_paid <- df %>% pivot_longer(c(PAY_AMT1, PAY_AMT2, PAY_AMT3, PAY_AMT4, PAY_AMT5, PAY_AMT6), "Month") %>%
+  rename(PAID = value) %>%
+  select(Month, PAID, Index)
+
+df_paid$Month <- sapply(df_paid$Month, extract_month)
+
+df_joined <- inner_join(x = df_billed, y = df_paid, by = c("Index", "Month")) %>% 
+inner_join(df_hist, by = c("Index", "Month")) %>%
+select(Month, BILLED, PAID, HIST, LIMIT_BAL, SEX, EDUCATION, MARRIAGE, AGE, default)
+
+df_sample <- df_joined %>% group_by(default) %>% slice_sample(prop = .3) %>% ungroup()
+```
+
+## Quantitivative Feature Chi Square Eval
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+chiv <- chi_vector(df_sample%>% select(-SEX, -EDUCATION, -MARRIAGE, -default), df_sample$default)
+ggplot(chiv, aes(x = feature, y = pvalue, color = Result, fill = Result)) + geom_col() +
+  theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust = -0.05))
+```
+
+## Qualitative Variable Correlation
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+ggcorrplot(cor(df_sample %>% select(AGE, LIMIT_BAL, HIST, BILLED, PAID)))
+```
+
+## HIST over Time
+
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+ggplot(df_sample, aes(x = Month, y = HIST, color = default)) + geom_point() + geom_jitter(alpha = .02)
+```
+
+## BILLED over Time
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+ggplot(df_sample, aes(x = Month, y = BILLED, color = default)) + geom_point() + geom_jitter(alpha = .02)
+```
+
+## Paid over Time
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+ ggplot(df_sample, aes(x = Month, y = PAID, color = default)) + geom_point() + geom_jitter(alpha = .02)
+```
+
+ ## PAID vs BILLED
+```{r, out.width = '100%', warning=FALSE, message=FALSE}
+ ggplot(df_sample, aes(x = BILLED, y = PAID, color = default)) + geom_point()
+
+ ggplot(df_sample, aes(x = BILLED, y = PAID, color = default)) + geom_point() + scale_y_log10() + scale_x_log10()
+```
+
+
